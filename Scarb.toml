@@ -5,6 +5,7 @@ version = "0.0.0"
 # See more keys and their definitions at https://docs.swmansion.com/scarb/docs/reference/manifest
 
 [dependencies]
+alexandria = { git = "https://github.com/keep-starknet-strange/alexandria" }
 starknet = "2.0.1"
 
 [[target.starknet-contract]]
