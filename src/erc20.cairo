@@ -40,8 +40,11 @@ mod erc20 {
     }
 
     #[constructor]
-    fn constructor(ref self: ContractState, name: felt252, symbol: felt252) {
+    fn constructor(
+        ref self: ContractState, name: felt252, symbol: felt252, owner: ContractAddress
+    ) {
         self.initializer(name, symbol);
+        self._owner.write(owner);
     }
 
     #[external(v0)]
