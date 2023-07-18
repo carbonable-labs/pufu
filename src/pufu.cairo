@@ -1,5 +1,5 @@
 #[starknet::contract]
-mod comde {
+mod pufu {
     use zeroable::Zeroable;
     use traits::{Into, TryInto};
     use result::ResultTrait;
@@ -226,23 +226,23 @@ mod tests {
     use starknet::contract_address_try_from_felt252;
     use traits::TryInto;
 
-    use super::comde;
+    use super::pufu;
     use super::super::interfaces::comde::{IComdeDispatcher, IComdeDispatcherTrait};
     use super::super::erc20::erc20;
 
-    fn deploy_comde() -> IComdeDispatcher {
+    fn deploy_pufu() -> IComdeDispatcher {
         let mut calldata = Default::default();
         calldata.append(erc20::TEST_CLASS_HASH);
         calldata.append(get_contract_address().into());
         let (address, _) = deploy_syscall(
-            comde::TEST_CLASS_HASH.try_into().unwrap(), 0, calldata.span(), false
+            pufu::TEST_CLASS_HASH.try_into().unwrap(), 0, calldata.span(), false
         )
             .unwrap();
         IComdeDispatcher { contract_address: address }
     }
 
     fn setup() -> IComdeDispatcher {
-        deploy_comde()
+        deploy_pufu()
     }
 
     #[test]
