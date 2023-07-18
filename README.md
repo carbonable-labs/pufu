@@ -12,9 +12,7 @@
 <div align="center">
 <br />
 
-[![GitHub Workflow Status](https://github.com/carbonable-labs/pufu/actions/workflows/test.yml/badge.svg)](https://github.com/carbonable-labs/pufu/actions/workflows/test.yml)
 [![Project license](https://img.shields.io/github/license/carbonable-labs/pufu.svg?style=flat-square)](LICENSE)
-[![Pull Requests welcome](https://img.shields.io/badge/PRs-welcome-ff69b4.svg?style=flat-square)](https://github.com/carbonable-labs/pufu/issues?q=is%3Aissue+is%3Aopen+label%3A%22help+wanted%22)
 [![All Contributors](https://img.shields.io/github/all-contributors/carbonable-labs/pufu?color=ee8449&style=flat-square)](#contributors)
 
 </div>
