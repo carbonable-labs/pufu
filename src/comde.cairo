@@ -1,5 +1,3 @@
-use core::traits::TryInto;
-
 #[starknet::contract]
 mod comde {
     use zeroable::Zeroable;
@@ -22,7 +20,7 @@ mod comde {
         _sources: List<ContractAddress>,
         _source_components: LegacyMap<ContractAddress, List<felt252>>,
         _components: List<felt252>,
-        _addresses: LegacyMap::<felt252, ContractAddress>,
+        _component_addresses: LegacyMap::<felt252, ContractAddress>,
     }
 
     #[event]
@@ -90,6 +88,9 @@ mod comde {
 
     #[external(v0)]
     impl Comde of IComde<ContractState> {
+        fn component_address(self: @ContractState, sk: felt252) -> ContractAddress {
+            self._component_addresses.read(sk)
+        }
         fn components(self: @ContractState) -> Array<felt252> {
             self._components.read().array()
         }
@@ -99,7 +100,7 @@ mod comde {
             // [Check] Caller is owner
             self.assert_only_owner();
             // [Check] Component not already registered
-            let address = self._addresses.read(sk);
+            let address = self._component_addresses.read(sk);
             assert(address.is_zero(), 'Component already registered');
             // [Effect] Deploy component as ERC20 contract
             let contract_address: felt252 = get_contract_address().into();
@@ -112,13 +113,13 @@ mod comde {
             // [Effect] Register component
             let mut components = self._components.read();
             components.append(sk);
-            self._addresses.write(sk, address);
+            self._component_addresses.write(sk, address);
         }
         fn delete_component(ref self: ContractState, sk: felt252) {
             // [Check] Caller is owner
             self.assert_only_owner();
             // [Check] Component already registered
-            let address = self._addresses.read(sk);
+            let address = self._component_addresses.read(sk);
             assert(!address.is_zero(), 'Component not registered');
             // [Effect] Delete component
             let mut components = self._components.read();
@@ -139,7 +140,7 @@ mod comde {
                 }
                 index += 1;
             };
-            self._addresses.write(sk, Zeroable::zero());
+            self._component_addresses.write(sk, Zeroable::zero());
         }
         fn sources(self: @ContractState) -> Array<ContractAddress> {
             self._sources.read().array()
@@ -162,6 +163,9 @@ mod comde {
                     break ();
                 }
                 let component = *components[index];
+                // [Check] Component is registered
+                let component_address = self._component_addresses.read(component);
+                assert(!component_address.is_zero(), 'Component not registered');
                 source_components.append(component);
                 index += 1;
             };
@@ -219,17 +223,16 @@ mod tests {
     use option::OptionTrait;
     use starknet::syscalls::deploy_syscall;
     use starknet::get_contract_address;
+    use starknet::contract_address_try_from_felt252;
     use traits::TryInto;
-
-    use test::test_utils::assert_eq;
 
     use super::comde;
     use super::super::interfaces::comde::{IComdeDispatcher, IComdeDispatcherTrait};
+    use super::super::erc20::erc20;
 
     fn deploy_comde() -> IComdeDispatcher {
         let mut calldata = Default::default();
-        // TODO: ERC20 class hash
-        calldata.append(comde::TEST_CLASS_HASH);
+        calldata.append(erc20::TEST_CLASS_HASH);
         calldata.append(get_contract_address().into());
         let (address, _) = deploy_syscall(
             comde::TEST_CLASS_HASH.try_into().unwrap(), 0, calldata.span(), false
@@ -238,55 +241,123 @@ mod tests {
         IComdeDispatcher { contract_address: address }
     }
 
-    fn setup() -> (IComdeDispatcher, ) {
-        (deploy_comde(), )
+    fn setup() -> IComdeDispatcher {
+        deploy_comde()
     }
 
     #[test]
-    #[available_gas(30000000)]
+    #[available_gas(10000000)]
     fn test_initialization() {
-        let (contract, ) = setup();
+        let contract = setup();
         assert(contract.components().len() == 0, 'Initialization failed');
+        let address = contract.component_address(sk: 'SK');
+        assert(address == Zeroable::zero(), 'Wrong address');
     }
 
     #[test]
-    #[available_gas(30000000)]
+    #[available_gas(10000000)]
     fn test_register_component() {
-        let (contract, ) = setup();
-    // contract.register_component(sk: 'SK', name: 'NAME', symbol: 'SYMBOL');
-    // assert(contract.components().len() == 1, 'Initialization failed');
+        let contract = setup();
+        let sk = 'SK';
+        contract.register_component(sk: sk, name: 'NAME', symbol: 'SYMBOL');
+        assert(contract.components().len() == 1, 'Registration failed');
+        assert(*contract.components()[0] == sk, 'Wrong key');
+        let address = contract.component_address(sk: sk);
+        assert(address != Zeroable::zero(), 'Wrong address');
     }
 
     #[test]
-    #[available_gas(30000000)]
+    #[should_panic]
+    #[available_gas(10000000)]
+    fn test_register_component_revert_already_registered() {
+        let contract = setup();
+        let sk = 'SK';
+        contract.register_component(sk: sk, name: 'NAME', symbol: 'SYMBOL');
+        contract.register_component(sk: sk, name: 'NAME', symbol: 'SYMBOL');
+    }
+
+    #[test]
+    #[available_gas(10000000)]
     fn test_delete_component() {
-        let (contract, ) = setup();
-    // contract.register_component(sk: 'SK', name: 'NAME', symbol: 'SYMBOL');
-    // contract.delete_component(sk: 'SK');
-    // assert(contract.components().len() == 1, 'Initialization failed');
+        let contract = setup();
+        let sk = 'SK';
+        contract.register_component(sk: sk, name: 'NAME', symbol: 'SYMBOL');
+        contract.delete_component(sk: sk);
+        assert(contract.components().len() == 0, 'Deletion failed');
+        let address = contract.component_address(sk: 'SK');
+        assert(address == Zeroable::zero(), 'Wrong address');
     }
 
     #[test]
-    #[available_gas(30000000)]
+    // Doesn't work since the assert failed in the impl and not in the test
+    // #[should_panic(expected: ('Component not registered',))]
+    #[should_panic]
+    #[available_gas(10000000)]
+    fn test_delete_component_revert_not_registered() {
+        let contract = setup();
+        let sk = 'SK';
+        contract.delete_component(sk: sk);
+    }
+
+    #[test]
+    #[available_gas(10000000)]
     fn test_register_source() {
-        let (contract, ) = setup();
-    // contract.register_component(sk: 'SK', name: 'NAME', symbol: 'SYMBOL');
-    // assert(contract.components().len() == 1, 'Initialization failed');
+        let contract = setup();
+        let sk = 'SK';
+        contract.register_component(sk: sk, name: 'NAME', symbol: 'SYMBOL');
+        let components = contract.components();
+        let address = contract_address_try_from_felt252(1).unwrap();
+        contract.register_source(address: address, components: components);
+        assert(contract.sources().len() == 1, 'Registration failed');
     }
 
     #[test]
-    #[available_gas(30000000)]
+    #[should_panic]
+    #[available_gas(10000000)]
+    fn test_register_source_revert_already_registered() {
+        let contract = setup();
+        let sk = 'SK';
+        contract.register_component(sk: sk, name: 'NAME', symbol: 'SYMBOL');
+        let components = contract.components();
+        let address = contract_address_try_from_felt252(1).unwrap();
+        contract.register_source(address: address, components: components);
+        let components = contract.components();
+        let address = contract_address_try_from_felt252(1).unwrap();
+        contract.register_source(address: address, components: components);
+    }
+
+    #[test]
+    #[available_gas(10000000)]
+    fn test_delete_source() {
+        let contract = setup();
+        let sk = 'SK';
+        contract.register_component(sk: sk, name: 'NAME', symbol: 'SYMBOL');
+        let components = contract.components();
+        let address = contract_address_try_from_felt252(1).unwrap();
+        contract.register_source(address: address, components: components);
+        let address = contract_address_try_from_felt252(1).unwrap();
+        contract.delete_source(address: address);
+        assert(contract.sources().len() == 0, 'Deletion failed');
+    }
+
+    #[test]
+    #[should_panic]
+    #[available_gas(10000000)]
+    fn test_delete_source_revert_not_registered() {
+        let contract = setup();
+        let address = contract_address_try_from_felt252(1).unwrap();
+        contract.delete_source(address: address);
+    }
+
+    #[test]
+    #[available_gas(10000000)]
     fn test_decompose() {
-        let (contract, ) = setup();
-    // contract.register_component(sk: 'SK', name: 'NAME', symbol: 'SYMBOL');
-    // assert(contract.components().len() == 1, 'Initialization failed');
+        let contract = setup();
     }
 
     #[test]
-    #[available_gas(30000000)]
+    #[available_gas(10000000)]
     fn test_compose() {
-        let (contract, ) = setup();
-    // contract.register_component(sk: 'SK', name: 'NAME', symbol: 'SYMBOL');
-    // assert(contract.components().len() == 1, 'Initialization failed');
+        let contract = setup();
     }
 }
