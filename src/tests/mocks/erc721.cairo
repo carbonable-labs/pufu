@@ -10,7 +10,7 @@ mod mock {
     struct Storage {}
 
     #[constructor]
-    fn constructor(ref self : ContractState) {}
+    fn constructor(ref self: ContractState) {}
 
     #[external(v0)]
     impl ERC721 of IERC721<ContractState> {

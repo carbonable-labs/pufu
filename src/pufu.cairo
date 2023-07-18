@@ -235,8 +235,8 @@ mod pufu {
                 //load contract from dispatcher
                 let erc_20_contract = IERC20Dispatcher { contract_address: erc20_address };
                 //mint
-                let qty =math::pow(TOKEN_QTY, erc_20_contract.decimals().into());
-                erc_20_contract.mint(caller,qty.into());
+                let qty = math::pow(TOKEN_QTY, erc_20_contract.decimals().into());
+                erc_20_contract.mint(caller, qty.into());
                 index += 1;
             }
         }
