@@ -35,25 +35,21 @@ mod comde {
 
     #[derive(Drop, starknet::Event)]
     struct Compose {
-        time: u64,
+        time: u64, 
     }
 
     #[derive(Drop, starknet::Event)]
     struct Decompose {
-        time: u64,
+        time: u64, 
     }
 
     #[derive(Drop, starknet::Event)]
     struct Register {
-        time: u64,
+        time: u64, 
     }
 
     #[constructor]
-    fn constructor(
-        ref self: ContractState,
-        class_hash: felt252,
-        owner: ContractAddress,
-    ) {
+    fn constructor(ref self: ContractState, class_hash: felt252, owner: ContractAddress, ) {
         self._class_hash_erc20.write(class_hash.try_into().unwrap());
         self._owner.write(owner);
     }
@@ -97,16 +93,18 @@ mod comde {
         fn components(self: @ContractState) -> Array<felt252> {
             self._components.read().array()
         }
-        fn register_component(ref self: ContractState, sk: felt252, name: felt252, symbol: felt252) {
+        fn register_component(
+            ref self: ContractState, sk: felt252, name: felt252, symbol: felt252
+        ) {
             // [Check] Caller is owner
             self.assert_only_owner();
             // [Check] Component not already registered
             let address = self._addresses.read(sk);
             assert(address.is_zero(), 'Component already registered');
             // [Effect] Deploy component as ERC20 contract
-            let contract_address : felt252 = get_contract_address().into();
+            let contract_address: felt252 = get_contract_address().into();
             let class_hash = self._class_hash_erc20.read();
-            let mut calldata : Array<felt252> = ArrayTrait::new();
+            let mut calldata: Array<felt252> = ArrayTrait::new();
             calldata.append(name);
             calldata.append(symbol);
             calldata.append(contract_address); // owner
@@ -149,7 +147,9 @@ mod comde {
         fn source_components(self: @ContractState, address: ContractAddress) -> Array<felt252> {
             self._source_components.read(address).array()
         }
-        fn register_source(ref self: ContractState, address: ContractAddress, components: Array<felt252>) {
+        fn register_source(
+            ref self: ContractState, address: ContractAddress, components: Array<felt252>
+        ) {
             // [Check] Caller is owner
             self.assert_only_owner();
             // [Check] Source not already registered
@@ -208,8 +208,7 @@ mod comde {
     }
 
     #[generate_trait]
-    impl Internal of IInternal {
-    }
+    impl Internal of IInternal {}
 }
 
 #[cfg(test)]
@@ -225,7 +224,7 @@ mod tests {
     use test::test_utils::assert_eq;
 
     use super::comde;
-    use super::super::interfaces::comde::{ IComdeDispatcher, IComdeDispatcherTrait };
+    use super::super::interfaces::comde::{IComdeDispatcher, IComdeDispatcherTrait};
 
     fn deploy_comde() -> IComdeDispatcher {
         let mut calldata = Default::default();
@@ -234,59 +233,60 @@ mod tests {
         calldata.append(get_contract_address().into());
         let (address, _) = deploy_syscall(
             comde::TEST_CLASS_HASH.try_into().unwrap(), 0, calldata.span(), false
-        ).unwrap();
+        )
+            .unwrap();
         IComdeDispatcher { contract_address: address }
     }
 
-    fn setup() -> (IComdeDispatcher,) {
+    fn setup() -> (IComdeDispatcher, ) {
         (deploy_comde(), )
     }
 
     #[test]
     #[available_gas(30000000)]
     fn test_initialization() {
-        let (contract,) = setup();
+        let (contract, ) = setup();
         assert(contract.components().len() == 0, 'Initialization failed');
     }
 
     #[test]
     #[available_gas(30000000)]
     fn test_register_component() {
-        let (contract,) = setup();
-        // contract.register_component(sk: 'SK', name: 'NAME', symbol: 'SYMBOL');
-        // assert(contract.components().len() == 1, 'Initialization failed');
+        let (contract, ) = setup();
+    // contract.register_component(sk: 'SK', name: 'NAME', symbol: 'SYMBOL');
+    // assert(contract.components().len() == 1, 'Initialization failed');
     }
 
     #[test]
     #[available_gas(30000000)]
     fn test_delete_component() {
-        let (contract,) = setup();
-        // contract.register_component(sk: 'SK', name: 'NAME', symbol: 'SYMBOL');
-        // contract.delete_component(sk: 'SK');
-        // assert(contract.components().len() == 1, 'Initialization failed');
+        let (contract, ) = setup();
+    // contract.register_component(sk: 'SK', name: 'NAME', symbol: 'SYMBOL');
+    // contract.delete_component(sk: 'SK');
+    // assert(contract.components().len() == 1, 'Initialization failed');
     }
 
     #[test]
     #[available_gas(30000000)]
     fn test_register_source() {
-        let (contract,) = setup();
-        // contract.register_component(sk: 'SK', name: 'NAME', symbol: 'SYMBOL');
-        // assert(contract.components().len() == 1, 'Initialization failed');
+        let (contract, ) = setup();
+    // contract.register_component(sk: 'SK', name: 'NAME', symbol: 'SYMBOL');
+    // assert(contract.components().len() == 1, 'Initialization failed');
     }
 
     #[test]
     #[available_gas(30000000)]
     fn test_decompose() {
-        let (contract,) = setup();
-        // contract.register_component(sk: 'SK', name: 'NAME', symbol: 'SYMBOL');
-        // assert(contract.components().len() == 1, 'Initialization failed');
+        let (contract, ) = setup();
+    // contract.register_component(sk: 'SK', name: 'NAME', symbol: 'SYMBOL');
+    // assert(contract.components().len() == 1, 'Initialization failed');
     }
 
     #[test]
     #[available_gas(30000000)]
     fn test_compose() {
-        let (contract,) = setup();
-        // contract.register_component(sk: 'SK', name: 'NAME', symbol: 'SYMBOL');
-        // assert(contract.components().len() == 1, 'Initialization failed');
+        let (contract, ) = setup();
+    // contract.register_component(sk: 'SK', name: 'NAME', symbol: 'SYMBOL');
+    // assert(contract.components().len() == 1, 'Initialization failed');
     }
 }
