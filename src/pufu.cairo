@@ -8,10 +8,15 @@ mod pufu {
     use starknet::ContractAddress;
     use starknet::class_hash::ClassHash;
     use starknet::get_caller_address;
-    use starknet::get_contract_address;
     use starknet::deploy_syscall;
     use alexandria::storage::list::{List, ListTrait};
     use super::super::interfaces::comde::IComde;
+    use starknet::get_contract_address;
+    use super::super::interfaces::erc721::{IERC721Dispatcher, IERC721DispatcherTrait};
+    use super::super::interfaces::erc20::{IERC20Dispatcher, IERC20DispatcherTrait};
+    use alexandria::math::math;
+
+    const TOKEN_QTY: u128 = 1;
 
     #[storage]
     struct Storage {
@@ -208,7 +213,33 @@ mod pufu {
             };
         }
         fn compose(self: @ContractState, address: ContractAddress) {}
-        fn decompose(self: @ContractState, address: ContractAddress, token_id: u256) {}
+        fn decompose(self: @ContractState, address: ContractAddress, token_id: u256) {
+            //[Check] caller is the ERC721 owner
+            let caller = get_caller_address();
+            let erc721_contract = IERC721Dispatcher { contract_address: address };
+            let owner = erc721_contract.owner_of(token_id);
+            assert(caller == owner, 'Only owner can decompose');
+
+            let mut source_components = self._source_components.read(address);
+            assert(source_components.len() != 0, 'No component registered');
+            let mut index = 0;
+            //[Effect] start decompose
+            loop {
+                if index == source_components.len() {
+                    break ();
+                }
+                //get Component
+                let component = source_components[index];
+                //get erc20 component addresse
+                let erc20_address = self._addresses.read(component);
+                //load contract from dispatcher
+                let erc_20_contract = IERC20Dispatcher { contract_address: erc20_address };
+                //mint
+                let qty =math::pow(TOKEN_QTY, erc_20_contract.decimals().into());
+                erc_20_contract.mint(caller,qty.into());
+                index += 1;
+            }
+        }
     }
 
     #[generate_trait]
