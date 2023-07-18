@@ -13,7 +13,7 @@ trait IERC20<TContractState> {
         ref self: TContractState, sender: ContractAddress, recipient: ContractAddress, amount: u256
     ) -> bool;
     fn approve(ref self: TContractState, spender: ContractAddress, amount: u256) -> bool;
-    fn mint(ref self: TContractState, recipient: ContractAddress,amount: u256) ;
+    fn mint(ref self: TContractState, recipient: ContractAddress, amount: u256);
 }
 
 #[starknet::interface]
