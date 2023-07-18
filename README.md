@@ -5,8 +5,6 @@
   <a href="https://github.com/carbonable-labs/pufu/issues/new?assignees=&labels=bug&template=01_BUG_REPORT.md&title=bug%3A+">Report a Bug</a>
   -
   <a href="https://github.com/carbonable-labs/pufu/issues/new?assignees=&labels=enhancement&template=02_FEATURE_REQUEST.md&title=feat%3A+">Request a Feature</a>
-  -
-  <a href="https://github.com/carbonable-labs/pufu/discussions">Ask a Question</a>
 </div>
 
 <div align="center">
