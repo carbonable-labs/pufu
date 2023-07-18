@@ -231,7 +231,7 @@ mod pufu {
                 //get Component
                 let component = source_components[index];
                 //get erc20 component addresse
-                let erc20_address = self._addresses.read(component);
+                let erc20_address = self._component_addresses.read(component);
                 //load contract from dispatcher
                 let erc_20_contract = IERC20Dispatcher { contract_address: erc20_address };
                 //mint
