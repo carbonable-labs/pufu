@@ -61,7 +61,7 @@ mod erc20 {
             self._mint(recipient, initial_supply);
         }
 
-        fn burn(ref self: ContractState, amount: u256) {//TODO implement burn
+        fn burn(ref self: ContractState, amount: u256) { //TODO implement burn
         }
     }
 
