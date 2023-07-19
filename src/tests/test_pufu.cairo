@@ -14,7 +14,8 @@ mod test {
     use super::super::super::interfaces::pufu::{IPufuDispatcher, IPufuDispatcherTrait};
     use super::super::super::erc20::erc20;
     use super::super::super::interfaces::erc721::{
-        IERC721Dispatcher, IERC721DispatcherTrait, IERC721MinterDispatcher, IERC721MinterDispatcherTrait
+        IERC721Dispatcher, IERC721DispatcherTrait, IERC721MinterDispatcher,
+        IERC721MinterDispatcherTrait
     };
     use super::super::super::tests::mocks::erc721::erc721;
     use super::super::super::interfaces::erc20::{IERC20Dispatcher, IERC20DispatcherTrait};
