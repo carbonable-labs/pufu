@@ -307,7 +307,7 @@ mod pufu {
             };
         }
 
-        fn compose(self: @ContractState, address: ContractAddress, token_id: u256) {
+        fn compose(ref self: ContractState, address: ContractAddress, token_id: u256) {
             let mut source_components = self._source_components.read(address);
 
             // [Compute] Token components (could be empty)
@@ -370,7 +370,7 @@ mod pufu {
             erc721.transfer_from(contract, caller, token_id);
         }
 
-        fn decompose(self: @ContractState, address: ContractAddress, token_id: u256) {
+        fn decompose(ref self: ContractState, address: ContractAddress, token_id: u256) {
             //[Check] caller is the ERC721 owner
             let caller = get_caller_address();
             let erc721_contract = IERC721Dispatcher { contract_address: address };
