@@ -135,9 +135,15 @@ mod pufu {
         fn delete_component(ref self: ContractState, sk: felt252) {
             // [Check] Caller is owner
             self.assert_only_owner();
+
             // [Check] Component already registered
             let address = self._component_addresses.read(sk);
             assert(!address.is_zero(), 'Component not registered');
+
+            // [Check] Check total supply is zero
+            let erc20 = IERC20Dispatcher { contract_address: address };
+            assert(erc20.total_supply() == 0, 'Total supply is not null');
+
             // [Effect] Delete component
             let mut components = self._components.read();
             let mut index = 0;
@@ -197,9 +203,15 @@ mod pufu {
         fn delete_source(ref self: ContractState, address: ContractAddress) {
             // [Check] Caller is owner
             self.assert_only_owner();
+
             // [Check] Source already registered
             let mut source_components = self._source_components.read(address);
             assert(source_components.len() != 0, 'Source not registered');
+
+            // [Check] No decomposition on going
+            let token_ids = self._token_ids.read(address);
+            assert(token_ids.len() == 0, 'Decomposition still exists');
+
             // [Effect] Delete source
             let mut sources = self._sources.read();
             let mut index = 0;
@@ -219,6 +231,7 @@ mod pufu {
                 }
                 index += 1;
             };
+
             // [Effect] Delete components
             let mut index = source_components.len() - 1;
             loop {
@@ -277,6 +290,12 @@ mod pufu {
             let hash = self._token_components_hash(address, token_id);
             let mut token_components = self._token_components.read(hash);
             assert(token_components.len() != 0, 'Token not registered');
+
+            // [Check] The token is not decomposed
+            let erc721 = IERC721Dispatcher { contract_address: address };
+            let owner = erc721.owner_of(token_id);
+            let contract = get_contract_address();
+            assert(owner != contract, 'Token is decomposed');
 
             // [Effect] Delete components
             let mut index = token_components.len() - 1;
