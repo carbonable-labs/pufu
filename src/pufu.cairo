@@ -56,7 +56,7 @@ mod pufu {
     }
 
     #[constructor]
-    fn constructor(ref self: ContractState, class_hash: felt252, owner: ContractAddress, ) {
+    fn constructor(ref self: ContractState, class_hash: felt252, owner: ContractAddress) {
         self._class_hash_erc20.write(class_hash.try_into().unwrap());
         self._owner.write(owner);
     }
