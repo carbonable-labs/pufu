@@ -13,7 +13,9 @@ use alexandria::math::math;
 use super::super::pufu::pufu;
 use super::super::interfaces::comde::{IComdeDispatcher, IComdeDispatcherTrait};
 use super::super::erc20::erc20;
-use super::super::interfaces::erc721::{IERC721Dispatcher, IERC721DispatcherTrait, IERC721MinterDispatcher, IERC721MinterDispatcherTrait};
+use super::super::interfaces::erc721::{
+    IERC721Dispatcher, IERC721DispatcherTrait, IERC721MinterDispatcher, IERC721MinterDispatcherTrait
+};
 use super::super::tests::mocks::erc721::erc721;
 use super::super::interfaces::erc20::{IERC20Dispatcher, IERC20DispatcherTrait};
 
@@ -48,7 +50,7 @@ fn setup() -> (IComdeDispatcher, IERC721Dispatcher, ContractAddress, ContractAdd
     set_contract_address(admin);
     // Deploy ERC721 and mint tokens to anyone
     let erc721 = deploy_erc721();
-    let erc721_minter = IERC721MinterDispatcher { contract_address: erc721.contract_address};
+    let erc721_minter = IERC721MinterDispatcher { contract_address: erc721.contract_address };
     erc721_minter.mint(to: anyone, token_id: TOKEN_ONE);
     erc721_minter.mint(to: anyone, token_id: TOKEN_TWO);
     // Deploy Pufu and register source, generic components and specific components
