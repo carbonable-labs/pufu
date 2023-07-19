@@ -308,19 +308,23 @@ mod pufu {
         }
 
         fn compose(self: @ContractState, address: ContractAddress, token_id: u256) {
-            // [Check] Source has been registered
             let mut source_components = self._source_components.read(address);
-            assert(source_components.len() != 0, 'Source not registered');
+
+            // [Compute] Token components (could be empty)
+            let hash = self._token_components_hash(address, token_id);
+            let mut token_components = self._token_components.read(hash);
+
+            // [Check] Source or token component has been registered
+            assert(
+                source_components.len() != 0 || token_components.len() != 0,
+                'No component registered'
+            );
 
             // [Check] Contract has at least 1 token
             let erc721 = IERC721Dispatcher { contract_address: address };
             let contract = get_contract_address();
             let mut token_ids = self._token_ids.read(erc721.contract_address);
             assert(token_ids.len() > 0, 'No token to redeem');
-
-            // [Compute] Token components (could be empty)
-            let hash = self._token_components_hash(address, token_id);
-            let mut token_components = self._token_components.read(hash);
 
             // [Interaction] Generic composition
             let caller = get_caller_address();
@@ -373,9 +377,7 @@ mod pufu {
             let owner = erc721_contract.owner_of(token_id);
             assert(caller == owner, 'Only owner can decompose');
 
-            // [Check] Source components is not empty
             let mut source_components = self._source_components.read(address);
-            assert(source_components.len() != 0, 'No component registered');
 
             // [Compute] Token components (could be empty)
             let mut inputs: Array<felt252> = ArrayTrait::new();
@@ -384,6 +386,12 @@ mod pufu {
             inputs.append(token_id.high.into());
             let hash = poseidon_hash_span(inputs.span());
             let mut token_components = self._token_components.read(hash);
+
+            // [Check] Source or token component has been registered
+            assert(
+                source_components.len() != 0 || token_components.len() != 0,
+                'No component registered'
+            );
 
             // [Effect] Store the token_id
             let mut token_ids = self._token_ids.read(address);
@@ -456,7 +464,8 @@ mod tests {
     use starknet::testing::set_contract_address;
     use traits::TryInto;
     use alexandria::math::math;
-
+    use debug::print;
+    use debug::PrintTrait;
     use super::pufu;
     use super::super::interfaces::comde::{IComdeDispatcher, IComdeDispatcherTrait};
     use super::super::erc20::erc20;
@@ -557,6 +566,44 @@ mod tests {
     }
 
     #[test]
+    #[available_gas(10000000)]
+    fn test_register_token() {
+        let (contract, erc721, admin) = setup();
+        let sk = 'SK';
+        let token_id = 1_u256;
+        contract.register_component(sk: sk, name: 'NAME', symbol: 'SYMBOL');
+        let components = contract.components();
+        contract.register_token(erc721.contract_address, token_id, components);
+    }
+
+
+    #[test]
+    #[should_panic]
+    #[available_gas(10000000)]
+    fn test_register_token_revert_already_registered() {
+        let (contract, erc721, admin) = setup();
+        let sk = 'SK';
+        let token_id = 1_u256;
+        contract.register_component(sk: sk, name: 'NAME', symbol: 'SYMBOL');
+        let components = contract.components();
+        contract.register_token(erc721.contract_address, token_id, components);
+        let components = contract.components();
+        contract.register_token(erc721.contract_address, token_id, components);
+    }
+
+    #[test]
+    #[available_gas(10000000)]
+    fn test_delete_token() {
+        let (contract, erc721, admin) = setup();
+        let sk = 'SK';
+        let token_id = 1_u256;
+        contract.register_component(sk: sk, name: 'NAME', symbol: 'SYMBOL');
+        let components = contract.components();
+        contract.register_token(erc721.contract_address, token_id, components);
+        contract.delete_token(erc721.contract_address, token_id)
+    }
+
+    #[test]
     #[should_panic]
     #[available_gas(10000000)]
     fn test_register_source_revert_already_registered() {
@@ -627,5 +674,77 @@ mod tests {
         let erc20_address = contract.component_address(sk: sk);
         let erc20 = IERC20Dispatcher { contract_address: erc20_address };
         assert(erc20.balance_of(admin) == 0, 'Wrong balance');
+    }
+
+
+    #[test]
+    #[available_gas(10000000)]
+    fn test_specific_decompose() {
+        let (contract, erc721, admin) = setup();
+        let token_id = 1_u256;
+        //[Effect] register generic component
+        let gk = 'GK';
+        contract.register_component(sk: gk, name: 'NAME', symbol: 'SYMBOL');
+        let components = contract.components();
+        contract.register_source(address: erc721.contract_address, components: components);
+        //[Effect] register specific component
+        let sk = 'SK';
+        contract.register_component(sk: sk, name: 'NAME', symbol: 'SYMBOL');
+        //[Effect] create specific component
+        let mut specific_components: Array<felt252> = ArrayTrait::new();
+        specific_components.append(sk);
+        //[Effect] register token
+        contract.register_token(erc721.contract_address, token_id, specific_components);
+        //[Interaction] decompose
+        contract.decompose(erc721.contract_address, token_id);
+        //[Check] generic erc20 new balance
+        let erc20_address = contract.component_address(sk: gk);
+        let erc20 = IERC20Dispatcher { contract_address: erc20_address };
+        let decimals: u128 = erc20.decimals().into();
+        let qty = pufu::TOKEN_QTY * math::pow(10, decimals);
+        assert(erc20.balance_of(admin) == qty.into(), 'Wrong generic balance');
+        //[Check] specific erc20 new balance
+        let erc20_address = contract.component_address(sk: sk);
+        let erc20 = IERC20Dispatcher { contract_address: erc20_address };
+        let decimals: u128 = erc20.decimals().into();
+        let qty = pufu::TOKEN_QTY * math::pow(10, decimals);
+        assert(erc20.balance_of(admin) == qty.into(), 'Wrong specific balance');
+    }
+
+    #[test]
+    #[available_gas(10000000)]
+    fn test_compose_specific() {
+
+let (contract, erc721, admin) = setup();
+        let token_id = 1_u256;
+        //[Effect] register generic component
+        let gk = 'GK';
+        contract.register_component(sk: gk, name: 'NAME', symbol: 'SYMBOL');
+        let components = contract.components();
+        contract.register_source(address: erc721.contract_address, components: components);
+        //[Effect] register specific component
+        let sk = 'SK';
+        contract.register_component(sk: sk, name: 'NAME', symbol: 'SYMBOL');
+        //[Effect] create specific component
+        let mut specific_components: Array<felt252> = ArrayTrait::new();
+        specific_components.append(sk);
+        //[Effect] register token
+        contract.register_token(erc721.contract_address, token_id, specific_components);
+        //[Interaction] decompose
+        contract.decompose(erc721.contract_address, token_id);
+         //[Interaction] compose
+        contract.compose(erc721.contract_address, token_id);
+        //[Check] generic erc20 new balance ==0
+        let erc20_address = contract.component_address(sk: gk);
+        let erc20 = IERC20Dispatcher { contract_address: erc20_address };
+        let decimals: u128 = erc20.decimals().into();
+        let qty = pufu::TOKEN_QTY * math::pow(10, decimals);
+        assert(erc20.balance_of(admin) == 0, 'Wrong generic balance');
+        //[Check] specific erc20 new balance ==0
+        let erc20_address = contract.component_address(sk: sk);
+        let erc20 = IERC20Dispatcher { contract_address: erc20_address };
+        let decimals: u128 = erc20.decimals().into();
+        let qty = pufu::TOKEN_QTY * math::pow(10, decimals);
+        assert(erc20.balance_of(admin) == 0, 'Wrong specific balance');
     }
 }
