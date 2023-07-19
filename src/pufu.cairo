@@ -27,7 +27,7 @@ mod pufu {
         _source_components: LegacyMap<ContractAddress, List<felt252>>,
         _components: List<felt252>,
         _component_addresses: LegacyMap::<felt252, ContractAddress>,
-        _token_ids: List<u256>,
+        _token_ids: LegacyMap<ContractAddress, List<u256>>,
     }
 
     #[event]
@@ -223,7 +223,7 @@ mod pufu {
             //[Check] Contract has at least 1 token
             let erc721 = IERC721Dispatcher { contract_address: address };
             let contract = get_contract_address();
-            let mut token_ids = self._token_ids.read();
+            let mut token_ids = self._token_ids.read(erc721.contract_address);
             assert(token_ids.len() > 0, 'No token to redeem');
 
             // [Check] ERC20 balances of caller
@@ -280,7 +280,7 @@ mod pufu {
             };
 
             // [Effect] Store the token_id
-            let mut token_ids = self._token_ids.read();
+            let mut token_ids = self._token_ids.read(address);
             token_ids.append(token_id);
 
             // [Interaction] Transfer token_id
