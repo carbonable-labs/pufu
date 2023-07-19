@@ -15,6 +15,7 @@ mod pufu {
     use super::super::interfaces::erc721::{IERC721Dispatcher, IERC721DispatcherTrait};
     use super::super::interfaces::erc20::{IERC20Dispatcher, IERC20DispatcherTrait};
     use alexandria::math::math;
+    use debug::PrintTrait;
 
     const TOKEN_QTY: u128 = 1;
 
@@ -212,7 +213,9 @@ mod pufu {
                 source_components.pop_front();
             };
         }
-        fn compose(self: @ContractState, address: ContractAddress) {}
+        fn compose(self: @ContractState, address: ContractAddress) {
+
+        }
         fn decompose(self: @ContractState, address: ContractAddress, token_id: u256) {
             //[Check] caller is the ERC721 owner
             let caller = get_caller_address();
@@ -235,8 +238,12 @@ mod pufu {
                 //load contract from dispatcher
                 let erc_20_contract = IERC20Dispatcher { contract_address: erc20_address };
                 //mint
-                let qty = math::pow(TOKEN_QTY, erc_20_contract.decimals().into());
+                let decimals : u128 = erc_20_contract.decimals().into();
+                let qty = TOKEN_QTY * math::pow(10 , decimals);
                 erc_20_contract.mint(caller, qty.into());
+                // [Interaction] Transfer token_id
+                let to = get_contract_address();
+                erc721_contract.transferFrom(from: caller, to: to, tokenId: token_id);
                 index += 1;
             }
         }
@@ -254,12 +261,18 @@ mod tests {
     use option::OptionTrait;
     use starknet::syscalls::deploy_syscall;
     use starknet::get_contract_address;
+    use starknet::ContractAddress;
     use starknet::contract_address_try_from_felt252;
+    use starknet::testing::set_contract_address;
     use traits::TryInto;
+    use alexandria::math::math;
 
     use super::pufu;
     use super::super::interfaces::comde::{IComdeDispatcher, IComdeDispatcherTrait};
     use super::super::erc20::erc20;
+    use super::super::interfaces::erc721::{IERC721Dispatcher, IERC721DispatcherTrait};
+    use super::super::tests::mocks::erc721::mock;
+    use super::super::interfaces::erc20::{IERC20Dispatcher, IERC20DispatcherTrait};
 
     fn deploy_pufu() -> IComdeDispatcher {
         let mut calldata = Default::default();
@@ -272,14 +285,25 @@ mod tests {
         IComdeDispatcher { contract_address: address }
     }
 
-    fn setup() -> IComdeDispatcher {
-        deploy_pufu()
+    fn deploy_erc721() -> IERC721Dispatcher {
+        let mut calldata = Default::default();
+        let (address, _) = deploy_syscall(
+            mock::TEST_CLASS_HASH.try_into().unwrap(), 0, calldata.span(), false
+        )
+            .unwrap();
+        IERC721Dispatcher { contract_address: address }
+    }
+
+    fn setup() -> (IComdeDispatcher, IERC721Dispatcher, ContractAddress) {
+        let admin = starknet::contract_address_const::<'ADMIN'>();
+        set_contract_address(admin);
+        (deploy_pufu(), deploy_erc721(), admin)
     }
 
     #[test]
     #[available_gas(10000000)]
     fn test_initialization() {
-        let contract = setup();
+        let (contract, _, _) = setup();
         assert(contract.components().len() == 0, 'Initialization failed');
         let address = contract.component_address(sk: 'SK');
         assert(address == Zeroable::zero(), 'Wrong address');
@@ -288,7 +312,7 @@ mod tests {
     #[test]
     #[available_gas(10000000)]
     fn test_register_component() {
-        let contract = setup();
+        let (contract, _, _) = setup();
         let sk = 'SK';
         contract.register_component(sk: sk, name: 'NAME', symbol: 'SYMBOL');
         assert(contract.components().len() == 1, 'Registration failed');
@@ -301,7 +325,7 @@ mod tests {
     #[should_panic]
     #[available_gas(10000000)]
     fn test_register_component_revert_already_registered() {
-        let contract = setup();
+        let (contract, _, _) = setup();
         let sk = 'SK';
         contract.register_component(sk: sk, name: 'NAME', symbol: 'SYMBOL');
         contract.register_component(sk: sk, name: 'NAME', symbol: 'SYMBOL');
@@ -310,7 +334,7 @@ mod tests {
     #[test]
     #[available_gas(10000000)]
     fn test_delete_component() {
-        let contract = setup();
+        let (contract, _, _) = setup();
         let sk = 'SK';
         contract.register_component(sk: sk, name: 'NAME', symbol: 'SYMBOL');
         contract.delete_component(sk: sk);
@@ -325,7 +349,7 @@ mod tests {
     #[should_panic]
     #[available_gas(10000000)]
     fn test_delete_component_revert_not_registered() {
-        let contract = setup();
+        let (contract, _, _) = setup();
         let sk = 'SK';
         contract.delete_component(sk: sk);
     }
@@ -333,7 +357,7 @@ mod tests {
     #[test]
     #[available_gas(10000000)]
     fn test_register_source() {
-        let contract = setup();
+        let (contract, _, _) = setup();
         let sk = 'SK';
         contract.register_component(sk: sk, name: 'NAME', symbol: 'SYMBOL');
         let components = contract.components();
@@ -346,7 +370,7 @@ mod tests {
     #[should_panic]
     #[available_gas(10000000)]
     fn test_register_source_revert_already_registered() {
-        let contract = setup();
+        let (contract, _, _) = setup();
         let sk = 'SK';
         contract.register_component(sk: sk, name: 'NAME', symbol: 'SYMBOL');
         let components = contract.components();
@@ -360,7 +384,7 @@ mod tests {
     #[test]
     #[available_gas(10000000)]
     fn test_delete_source() {
-        let contract = setup();
+        let (contract, _, _) = setup();
         let sk = 'SK';
         contract.register_component(sk: sk, name: 'NAME', symbol: 'SYMBOL');
         let components = contract.components();
@@ -375,7 +399,7 @@ mod tests {
     #[should_panic]
     #[available_gas(10000000)]
     fn test_delete_source_revert_not_registered() {
-        let contract = setup();
+        let (contract, _, _) = setup();
         let address = contract_address_try_from_felt252(1).unwrap();
         contract.delete_source(address: address);
     }
@@ -383,12 +407,24 @@ mod tests {
     #[test]
     #[available_gas(10000000)]
     fn test_decompose() {
-        let contract = setup();
+        let (contract, erc721, admin) = setup();
+        let sk = 'SK';
+        let token_id = 1_u256;
+        contract.register_component(sk: sk, name: 'NAME', symbol: 'SYMBOL');
+        let components = contract.components();
+        contract.register_source(address: erc721.contract_address, components: components);
+        contract.decompose(erc721.contract_address, token_id);
+        let erc20_address = contract.component_address(sk: sk);
+        let erc20 = IERC20Dispatcher { contract_address: erc20_address };
+        // [Check] ERC20 new balance
+        let decimals : u128 = erc20.decimals().into();
+        let qty = pufu::TOKEN_QTY * math::pow(10 , decimals);
+        assert(erc20.balance_of(admin) == qty.into(), 'Wrong balance');
     }
 
     #[test]
     #[available_gas(10000000)]
     fn test_compose() {
-        let contract = setup();
+        let (contract, _, _) = setup();
     }
 }
