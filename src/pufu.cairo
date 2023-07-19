@@ -11,7 +11,7 @@ mod pufu {
     use starknet::get_caller_address;
     use starknet::deploy_syscall;
     use alexandria::storage::list::{List, ListTrait};
-    use super::super::interfaces::comde::IComde;
+    use super::super::interfaces::pufu::IPufu;
     use starknet::get_contract_address;
     use super::super::interfaces::erc721::{IERC721Dispatcher, IERC721DispatcherTrait};
     use super::super::interfaces::erc20::{IERC20Dispatcher, IERC20DispatcherTrait};
@@ -101,7 +101,7 @@ mod pufu {
     }
 
     #[external(v0)]
-    impl Comde of IComde<ContractState> {
+    impl Comde of IPufu<ContractState> {
         fn component_address(self: @ContractState, sk: felt252) -> ContractAddress {
             self._component_addresses.read(sk)
         }
@@ -460,20 +460,19 @@ mod tests {
     use starknet::syscalls::deploy_syscall;
     use starknet::get_contract_address;
     use starknet::ContractAddress;
-    use starknet::contract_address_try_from_felt252;
     use starknet::testing::set_contract_address;
     use traits::TryInto;
     use alexandria::math::math;
     use debug::print;
     use debug::PrintTrait;
     use super::pufu;
-    use super::super::interfaces::comde::{IComdeDispatcher, IComdeDispatcherTrait};
+    use super::super::interfaces::pufu::{IPufuDispatcher, IPufuDispatcherTrait};
     use super::super::erc20::erc20;
     use super::super::interfaces::erc721::{IERC721Dispatcher, IERC721DispatcherTrait};
     use super::super::tests::mocks::erc721::mock;
     use super::super::interfaces::erc20::{IERC20Dispatcher, IERC20DispatcherTrait};
 
-    fn deploy_pufu() -> IComdeDispatcher {
+    fn deploy_pufu() -> IPufuDispatcher {
         let mut calldata = Default::default();
         calldata.append(erc20::TEST_CLASS_HASH);
         calldata.append(get_contract_address().into());
@@ -481,7 +480,7 @@ mod tests {
             pufu::TEST_CLASS_HASH.try_into().unwrap(), 0, calldata.span(), false
         )
             .unwrap();
-        IComdeDispatcher { contract_address: address }
+        IPufuDispatcher { contract_address: address }
     }
 
     fn deploy_erc721() -> IERC721Dispatcher {
@@ -493,7 +492,7 @@ mod tests {
         IERC721Dispatcher { contract_address: address }
     }
 
-    fn setup() -> (IComdeDispatcher, IERC721Dispatcher, ContractAddress) {
+    fn setup() -> (IPufuDispatcher, IERC721Dispatcher, ContractAddress) {
         let admin = starknet::contract_address_const::<'ADMIN'>();
         set_contract_address(admin);
         (deploy_pufu(), deploy_erc721(), admin)
@@ -560,7 +559,7 @@ mod tests {
         let sk = 'SK';
         contract.register_component(sk: sk, name: 'NAME', symbol: 'SYMBOL');
         let components = contract.components();
-        let address = contract_address_try_from_felt252(1).unwrap();
+        let address = starknet::contract_address_const::<'ADDRESS'>();
         contract.register_source(address: address, components: components);
         assert(contract.sources().len() == 1, 'Registration failed');
     }
@@ -575,7 +574,6 @@ mod tests {
         let components = contract.components();
         contract.register_token(erc721.contract_address, token_id, components);
     }
-
 
     #[test]
     #[should_panic]
@@ -611,10 +609,9 @@ mod tests {
         let sk = 'SK';
         contract.register_component(sk: sk, name: 'NAME', symbol: 'SYMBOL');
         let components = contract.components();
-        let address = contract_address_try_from_felt252(1).unwrap();
+        let address = starknet::contract_address_const::<'ADDRESS'>();
         contract.register_source(address: address, components: components);
         let components = contract.components();
-        let address = contract_address_try_from_felt252(1).unwrap();
         contract.register_source(address: address, components: components);
     }
 
@@ -625,9 +622,8 @@ mod tests {
         let sk = 'SK';
         contract.register_component(sk: sk, name: 'NAME', symbol: 'SYMBOL');
         let components = contract.components();
-        let address = contract_address_try_from_felt252(1).unwrap();
+        let address = starknet::contract_address_const::<'ADDRESS'>();
         contract.register_source(address: address, components: components);
-        let address = contract_address_try_from_felt252(1).unwrap();
         contract.delete_source(address: address);
         assert(contract.sources().len() == 0, 'Deletion failed');
     }
@@ -637,7 +633,7 @@ mod tests {
     #[available_gas(10000000)]
     fn test_delete_source_revert_not_registered() {
         let (contract, _, _) = setup();
-        let address = contract_address_try_from_felt252(1).unwrap();
+        let address = starknet::contract_address_const::<'ADDRESS'>();
         contract.delete_source(address: address);
     }
 
@@ -676,7 +672,6 @@ mod tests {
         assert(erc20.balance_of(admin) == 0, 'Wrong balance');
     }
 
-
     #[test]
     #[available_gas(10000000)]
     fn test_specific_decompose() {
@@ -713,7 +708,7 @@ mod tests {
 
     #[test]
     #[available_gas(10000000)]
-    fn test_compose_specific() {
+    fn test_specific_compose() {
         let (contract, erc721, admin) = setup();
         let token_id = 1_u256;
         //[Effect] register generic component
