@@ -273,8 +273,8 @@ mod pufu {
                 //load contract from dispatcher
                 let erc_20_contract = IERC20Dispatcher { contract_address: erc20_address };
                 //mint
-                let decimals : u128 = erc_20_contract.decimals().into();
-                let qty = TOKEN_QTY * math::pow(10 , decimals);
+                let decimals: u128 = erc_20_contract.decimals().into();
+                let qty = TOKEN_QTY * math::pow(10, decimals);
                 erc_20_contract.mint(caller, qty.into());
                 index += 1;
             };
@@ -457,8 +457,8 @@ mod tests {
         let erc20_address = contract.component_address(sk: sk);
         let erc20 = IERC20Dispatcher { contract_address: erc20_address };
         // [Check] ERC20 new balance
-        let decimals : u128 = erc20.decimals().into();
-        let qty = pufu::TOKEN_QTY * math::pow(10 , decimals);
+        let decimals: u128 = erc20.decimals().into();
+        let qty = pufu::TOKEN_QTY * math::pow(10, decimals);
         assert(erc20.balance_of(admin) == qty.into(), 'Wrong balance');
     }
 
