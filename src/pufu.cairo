@@ -714,8 +714,7 @@ mod tests {
     #[test]
     #[available_gas(10000000)]
     fn test_compose_specific() {
-
-let (contract, erc721, admin) = setup();
+        let (contract, erc721, admin) = setup();
         let token_id = 1_u256;
         //[Effect] register generic component
         let gk = 'GK';
@@ -732,7 +731,7 @@ let (contract, erc721, admin) = setup();
         contract.register_token(erc721.contract_address, token_id, specific_components);
         //[Interaction] decompose
         contract.decompose(erc721.contract_address, token_id);
-         //[Interaction] compose
+        //[Interaction] compose
         contract.compose(erc721.contract_address, token_id);
         //[Check] generic erc20 new balance ==0
         let erc20_address = contract.component_address(sk: gk);
