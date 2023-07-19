@@ -84,7 +84,9 @@ mod erc721 {
             self._token_approvals.read(token_id)
         }
 
-        fn is_approved_for_all(self: @ContractState, owner: ContractAddress, operator: ContractAddress) -> bool {
+        fn is_approved_for_all(
+            self: @ContractState, owner: ContractAddress, operator: ContractAddress
+        ) -> bool {
             self._operator_approvals.read((owner, operator))
         }
 
@@ -93,27 +95,38 @@ mod erc721 {
 
             let caller = get_caller_address();
             assert(
-                owner == caller || self.is_approved_for_all(owner, caller), 'ERC721: unauthorized caller'
+                owner == caller || self.is_approved_for_all(owner, caller),
+                'ERC721: unauthorized caller'
             );
             self._approve(to, token_id);
         }
 
-        fn set_approval_for_all(ref self: ContractState, operator: ContractAddress, approved: bool) {
+        fn set_approval_for_all(
+            ref self: ContractState, operator: ContractAddress, approved: bool
+        ) {
             self._set_approval_for_all(get_caller_address(), operator, approved)
         }
 
-        fn transfer_from(ref self: ContractState, from: ContractAddress, to: ContractAddress, token_id: u256) {
+        fn transfer_from(
+            ref self: ContractState, from: ContractAddress, to: ContractAddress, token_id: u256
+        ) {
             assert(
-                self._is_approved_or_owner(get_caller_address(), token_id), 'ERC721: unauthorized caller'
+                self._is_approved_or_owner(get_caller_address(), token_id),
+                'ERC721: unauthorized caller'
             );
             self._transfer(from, to, token_id);
         }
 
         fn safe_transfer_from(
-            ref self: ContractState, from: ContractAddress, to: ContractAddress, token_id: u256, data: Span<felt252>
+            ref self: ContractState,
+            from: ContractAddress,
+            to: ContractAddress,
+            token_id: u256,
+            data: Span<felt252>
         ) {
             assert(
-                self._is_approved_or_owner(get_caller_address(), token_id), 'ERC721: unauthorized caller'
+                self._is_approved_or_owner(get_caller_address(), token_id),
+                'ERC721: unauthorized caller'
             );
             self._safe_transfer(from, to, token_id, data);
         }
@@ -144,25 +157,39 @@ mod erc721 {
         fn _exists(self: @ContractState, token_id: u256) -> bool {
             !self._owners.read(token_id).is_zero()
         }
-        
-        fn _is_approved_or_owner(self: @ContractState, spender: ContractAddress, token_id: u256) -> bool {
+
+        fn _is_approved_or_owner(
+            self: @ContractState, spender: ContractAddress, token_id: u256
+        ) -> bool {
             let owner = self._owner_of(token_id);
-            owner == spender || self.is_approved_for_all(owner, spender) || spender == self.get_approved(token_id)
+            owner == spender
+                || self.is_approved_for_all(owner, spender)
+                || spender == self.get_approved(token_id)
         }
-        
+
         fn _approve(ref self: ContractState, to: ContractAddress, token_id: u256) {
             let owner = self._owner_of(token_id);
             assert(owner != to, 'ERC721: approval to owner');
             self._token_approvals.write(token_id, to);
             self.emit(Event::Approval(Approval { owner: owner, approved: to, token_id: token_id }));
         }
-        
-        fn _set_approval_for_all(ref self: ContractState, owner: ContractAddress, operator: ContractAddress, approved: bool) {
+
+        fn _set_approval_for_all(
+            ref self: ContractState,
+            owner: ContractAddress,
+            operator: ContractAddress,
+            approved: bool
+        ) {
             assert(owner != operator, 'ERC721: self approval');
             self._operator_approvals.write((owner, operator), approved);
-            self.emit(Event::ApprovalForAll(ApprovalForAll { owner: owner, operator: operator, approved: approved }));
+            self
+                .emit(
+                    Event::ApprovalForAll(
+                        ApprovalForAll { owner: owner, operator: operator, approved: approved }
+                    )
+                );
         }
-        
+
         fn _mint(ref self: ContractState, to: ContractAddress, token_id: u256) {
             assert(!to.is_zero(), 'ERC721: invalid receiver');
             assert(!self._exists(token_id), 'ERC721: token already minted');
@@ -174,10 +201,15 @@ mod erc721 {
             self._owners.write(token_id, to);
 
             // Emit event
-            self.emit(Event::Transfer(Transfer { from: Zeroable::zero(), to: to, token_id: token_id }));
+            self
+                .emit(
+                    Event::Transfer(Transfer { from: Zeroable::zero(), to: to, token_id: token_id })
+                );
         }
-        
-        fn _transfer(ref self: ContractState, from: ContractAddress, to: ContractAddress, token_id: u256) {
+
+        fn _transfer(
+            ref self: ContractState, from: ContractAddress, to: ContractAddress, token_id: u256
+        ) {
             assert(!to.is_zero(), 'ERC721: invalid receiver');
             let owner = self._owner_of(token_id);
             assert(from == owner, 'ERC721: wrong sender');
@@ -195,7 +227,7 @@ mod erc721 {
             // Emit event
             self.emit(Event::Transfer(Transfer { from: from, to: to, token_id: token_id }));
         }
-        
+
         fn _burn(ref self: ContractState, token_id: u256) {
             let owner = self._owner_of(token_id);
 
@@ -209,19 +241,30 @@ mod erc721 {
             self._owners.write(token_id, Zeroable::zero());
 
             // Emit event
-            self.emit(Event::Transfer(Transfer { from: owner, to: Zeroable::zero(), token_id: token_id }));
+            self
+                .emit(
+                    Event::Transfer(
+                        Transfer { from: owner, to: Zeroable::zero(), token_id: token_id }
+                    )
+                );
         }
-        
-        fn _safe_mint(ref self: ContractState, to: ContractAddress, token_id: u256, data: Span<felt252>) {
+
+        fn _safe_mint(
+            ref self: ContractState, to: ContractAddress, token_id: u256, data: Span<felt252>
+        ) {
             self._mint(to, token_id);
         }
-        
+
         fn _safe_transfer(
-            ref self: ContractState, from: ContractAddress, to: ContractAddress, token_id: u256, data: Span<felt252>
+            ref self: ContractState,
+            from: ContractAddress,
+            to: ContractAddress,
+            token_id: u256,
+            data: Span<felt252>
         ) {
             self._transfer(from, to, token_id);
         }
-        
+
         fn _set_token_uri(ref self: ContractState, token_id: u256, token_uri: felt252) {
             assert(self._exists(token_id), 'ERC721: invalid token ID');
             self._token_uri.write(token_id, token_uri)
@@ -269,18 +312,28 @@ mod mock {
             starknet::contract_address_const::<'ADMIN'>()
         }
 
-        fn is_approved_for_all(self: @ContractState, owner: ContractAddress, operator: ContractAddress) -> bool {
+        fn is_approved_for_all(
+            self: @ContractState, owner: ContractAddress, operator: ContractAddress
+        ) -> bool {
             true
         }
 
         fn approve(ref self: ContractState, to: ContractAddress, token_id: u256) {}
 
-        fn set_approval_for_all(ref self: ContractState, operator: ContractAddress, approved: bool) {}
+        fn set_approval_for_all(
+            ref self: ContractState, operator: ContractAddress, approved: bool
+        ) {}
 
-        fn transfer_from(ref self: ContractState, from: ContractAddress, to: ContractAddress, token_id: u256) {}
+        fn transfer_from(
+            ref self: ContractState, from: ContractAddress, to: ContractAddress, token_id: u256
+        ) {}
 
         fn safe_transfer_from(
-            ref self: ContractState, from: ContractAddress, to: ContractAddress, token_id: u256, data: Span<felt252>
+            ref self: ContractState,
+            from: ContractAddress,
+            to: ContractAddress,
+            token_id: u256,
+            data: Span<felt252>
         ) {}
     }
 }
