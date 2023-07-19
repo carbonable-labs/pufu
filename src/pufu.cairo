@@ -27,6 +27,7 @@ mod pufu {
         _source_components: LegacyMap<ContractAddress, List<felt252>>,
         _components: List<felt252>,
         _component_addresses: LegacyMap::<felt252, ContractAddress>,
+        _token_ids: List<u256>,
     }
 
     #[event]
@@ -85,6 +86,11 @@ mod pufu {
             // [Effect] Renounce ownership
             self._owner.write(Zeroable::zero());
         }
+    }
+
+    #[generate_trait]
+    #[external(v0)]
+    impl Assert of IAssert {
         fn assert_only_owner(self: @ContractState) {
             let caller = get_caller_address();
             let owner = self._owner.read();
@@ -214,7 +220,36 @@ mod pufu {
             };
         }
         fn compose(self: @ContractState, address: ContractAddress) {
+            //[Check] Contract has at least 1 token
+            let erc721 = IERC721Dispatcher { contract_address: address };
+            let contract = get_contract_address();
+            let mut token_ids = self._token_ids.read();
+            assert(token_ids.len() > 0, 'No token to redeem');
 
+            // [Check] ERC20 balances of caller
+            let caller = get_caller_address();
+            let mut source_components = self._source_components.read(address);
+            let mut index = 0;
+            loop {
+                if index == source_components.len() {
+                    break ();
+                }
+                let sk = source_components.get(index).expect('index out of bounds');
+                let erc20_address = self._component_addresses.read(sk);
+                let erc20 = IERC20Dispatcher { contract_address: erc20_address };
+                let balance = erc20.balance_of(caller);
+                let decimals = erc20.decimals();
+                let minimum_balance = TOKEN_QTY * math::pow(10, decimals.into());
+                assert(balance >= minimum_balance.into(), 'Insufficient balance');
+
+                // [Interaction] Burn ERC20 tokens
+                erc20.burn(caller, minimum_balance.into());
+                index += 1;
+            };
+
+            // [Interaction] Redeem ERC721 token
+            let token_id = token_ids.pop_front().unwrap();
+            erc721.transferFrom(contract, caller, token_id);
         }
         fn decompose(self: @ContractState, address: ContractAddress, token_id: u256) {
             //[Check] caller is the ERC721 owner
@@ -241,11 +276,16 @@ mod pufu {
                 let decimals : u128 = erc_20_contract.decimals().into();
                 let qty = TOKEN_QTY * math::pow(10 , decimals);
                 erc_20_contract.mint(caller, qty.into());
-                // [Interaction] Transfer token_id
-                let to = get_contract_address();
-                erc721_contract.transferFrom(from: caller, to: to, tokenId: token_id);
                 index += 1;
-            }
+            };
+
+            // [Effect] Store the token_id
+            let mut token_ids = self._token_ids.read();
+            token_ids.append(token_id);
+
+            // [Interaction] Transfer token_id
+            let to = get_contract_address();
+            erc721_contract.transferFrom(from: caller, to: to, tokenId: token_id);
         }
     }
 
@@ -425,6 +465,17 @@ mod tests {
     #[test]
     #[available_gas(10000000)]
     fn test_compose() {
-        let (contract, _, _) = setup();
+        let (contract, erc721, admin) = setup();
+        let sk = 'SK';
+        let token_id = 1_u256;
+        contract.register_component(sk: sk, name: 'NAME', symbol: 'SYMBOL');
+        let components = contract.components();
+        contract.register_source(address: erc721.contract_address, components: components);
+        contract.decompose(erc721.contract_address, token_id);
+        contract.compose(erc721.contract_address);
+        // [Check] ERC20 new balance
+        let erc20_address = contract.component_address(sk: sk);
+        let erc20 = IERC20Dispatcher { contract_address: erc20_address };
+        assert(erc20.balance_of(admin) == 0, 'Wrong balance');
     }
 }

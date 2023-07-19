@@ -102,6 +102,10 @@ mod erc20 {
         fn mint(ref self: ContractState, recipient: ContractAddress, amount: u256) {
             self._mint(recipient, amount);
         }
+
+        fn burn(ref self: ContractState, account: ContractAddress, amount: u256) {
+            self._burn(account, amount);
+        }
     }
 
     #[external(v0)]
