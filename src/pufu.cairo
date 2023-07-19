@@ -5,6 +5,7 @@ mod pufu {
     use result::ResultTrait;
     use option::OptionTrait;
     use array::{Array, ArrayTrait};
+    use poseidon::poseidon_hash_span;
     use starknet::ContractAddress;
     use starknet::class_hash::ClassHash;
     use starknet::get_caller_address;
@@ -25,6 +26,7 @@ mod pufu {
         _class_hash_erc20: ClassHash,
         _sources: List<ContractAddress>,
         _source_components: LegacyMap<ContractAddress, List<felt252>>,
+        _token_components: LegacyMap<felt252, List<felt252>>,
         _components: List<felt252>,
         _component_addresses: LegacyMap::<felt252, ContractAddress>,
         _token_ids: LegacyMap<ContractAddress, List<u256>>,
@@ -103,9 +105,11 @@ mod pufu {
         fn component_address(self: @ContractState, sk: felt252) -> ContractAddress {
             self._component_addresses.read(sk)
         }
+
         fn components(self: @ContractState) -> Array<felt252> {
             self._components.read().array()
         }
+
         fn register_component(
             ref self: ContractState, sk: felt252, name: felt252, symbol: felt252
         ) {
@@ -127,6 +131,7 @@ mod pufu {
             components.append(sk);
             self._component_addresses.write(sk, address);
         }
+
         fn delete_component(ref self: ContractState, sk: felt252) {
             // [Check] Caller is owner
             self.assert_only_owner();
@@ -154,12 +159,15 @@ mod pufu {
             };
             self._component_addresses.write(sk, Zeroable::zero());
         }
+
         fn sources(self: @ContractState) -> Array<ContractAddress> {
             self._sources.read().array()
         }
+
         fn source_components(self: @ContractState, address: ContractAddress) -> Array<felt252> {
             self._source_components.read(address).array()
         }
+
         fn register_source(
             ref self: ContractState, address: ContractAddress, components: Array<felt252>
         ) {
@@ -185,6 +193,7 @@ mod pufu {
             let mut sources = self._sources.read();
             sources.append(address);
         }
+
         fn delete_source(ref self: ContractState, address: ContractAddress) {
             // [Check] Caller is owner
             self.assert_only_owner();
@@ -219,21 +228,89 @@ mod pufu {
                 source_components.pop_front();
             };
         }
-        fn compose(self: @ContractState, address: ContractAddress) {
-            //[Check] Contract has at least 1 token
+
+        fn tokens(self: @ContractState, address: ContractAddress) -> Array<u256> {
+            self._token_ids.read(address).array()
+        }
+
+        fn token_components(
+            self: @ContractState, address: ContractAddress, token_id: u256
+        ) -> Array<felt252> {
+            let hash = self._token_components_hash(address, token_id);
+            self._token_components.read(hash).array()
+        }
+
+        fn register_token(
+            ref self: ContractState,
+            address: ContractAddress,
+            token_id: u256,
+            components: Array<felt252>
+        ) {
+            // [Check] Caller is owner
+            self.assert_only_owner();
+
+            // [Check] Token not already registered
+            let hash = self._token_components_hash(address, token_id);
+            let mut token_components = self._token_components.read(hash);
+            assert(token_components.len() == 0, 'Token already registered');
+
+            // [Effect] Store components
+            let mut index = 0;
+            loop {
+                if index == components.len() {
+                    break ();
+                }
+                let component = *components[index];
+                // [Check] Component is registered
+                let component_address = self._component_addresses.read(component);
+                assert(!component_address.is_zero(), 'Component not registered');
+                token_components.append(component);
+                index += 1;
+            };
+        }
+
+        fn delete_token(ref self: ContractState, address: ContractAddress, token_id: u256) {
+            // [Check] Caller is owner
+            self.assert_only_owner();
+
+            // [Check] Token already registered
+            let hash = self._token_components_hash(address, token_id);
+            let mut token_components = self._token_components.read(hash);
+            assert(token_components.len() != 0, 'Token not registered');
+
+            // [Effect] Delete components
+            let mut index = token_components.len() - 1;
+            loop {
+                if index == 0 {
+                    break ();
+                }
+                token_components.pop_front();
+            };
+        }
+
+        fn compose(self: @ContractState, address: ContractAddress, token_id: u256) {
+            // [Check] Source has been registered
+            let mut source_components = self._source_components.read(address);
+            assert(source_components.len() != 0, 'Source not registered');
+
+            // [Check] Contract has at least 1 token
             let erc721 = IERC721Dispatcher { contract_address: address };
             let contract = get_contract_address();
             let mut token_ids = self._token_ids.read(erc721.contract_address);
             assert(token_ids.len() > 0, 'No token to redeem');
 
-            // [Check] ERC20 balances of caller
+            // [Compute] Token components (could be empty)
+            let hash = self._token_components_hash(address, token_id);
+            let mut token_components = self._token_components.read(hash);
+
+            // [Interaction] Generic composition
             let caller = get_caller_address();
-            let mut source_components = self._source_components.read(address);
             let mut index = 0;
             loop {
                 if index == source_components.len() {
                     break ();
                 }
+                // [Check] Component balance of caller
                 let sk = source_components.get(index).expect('index out of bounds');
                 let erc20_address = self._component_addresses.read(sk);
                 let erc20 = IERC20Dispatcher { contract_address: erc20_address };
@@ -247,10 +324,29 @@ mod pufu {
                 index += 1;
             };
 
+            // [Interaction] Specific composition
+            let mut index = 0;
+            loop {
+                if index == token_components.len() {
+                    break ();
+                }
+                let sk = token_components.get(index).expect('index out of bounds');
+                let erc20_address = self._component_addresses.read(sk);
+                let erc20 = IERC20Dispatcher { contract_address: erc20_address };
+                let balance = erc20.balance_of(caller);
+                let decimals = erc20.decimals();
+                let minimum_balance = TOKEN_QTY * math::pow(10, decimals.into());
+                assert(balance >= minimum_balance.into(), 'Insufficient balance');
+
+                // [Interaction] Burn ERC20 tokens
+                erc20.burn(caller, minimum_balance.into());
+                index += 1;
+            };
+
             // [Interaction] Redeem ERC721 token
-            let token_id = token_ids.pop_front().unwrap();
             erc721.transferFrom(contract, caller, token_id);
         }
+
         fn decompose(self: @ContractState, address: ContractAddress, token_id: u256) {
             //[Check] caller is the ERC721 owner
             let caller = get_caller_address();
@@ -258,26 +354,17 @@ mod pufu {
             let owner = erc721_contract.owner_of(token_id);
             assert(caller == owner, 'Only owner can decompose');
 
+            // [Check] Source components is not empty
             let mut source_components = self._source_components.read(address);
             assert(source_components.len() != 0, 'No component registered');
-            let mut index = 0;
-            //[Effect] start decompose
-            loop {
-                if index == source_components.len() {
-                    break ();
-                }
-                //get Component
-                let component = source_components[index];
-                //get erc20 component addresse
-                let erc20_address = self._component_addresses.read(component);
-                //load contract from dispatcher
-                let erc_20_contract = IERC20Dispatcher { contract_address: erc20_address };
-                //mint
-                let decimals: u128 = erc_20_contract.decimals().into();
-                let qty = TOKEN_QTY * math::pow(10, decimals);
-                erc_20_contract.mint(caller, qty.into());
-                index += 1;
-            };
+
+            // [Compute] Token components (could be empty)
+            let mut inputs: Array<felt252> = ArrayTrait::new();
+            inputs.append(address.into());
+            inputs.append(token_id.low.into());
+            inputs.append(token_id.high.into());
+            let hash = poseidon_hash_span(inputs.span());
+            let mut token_components = self._token_components.read(hash);
 
             // [Effect] Store the token_id
             let mut token_ids = self._token_ids.read(address);
@@ -286,11 +373,55 @@ mod pufu {
             // [Interaction] Transfer token_id
             let to = get_contract_address();
             erc721_contract.transferFrom(from: caller, to: to, tokenId: token_id);
+
+            // [Interaction] Generic decomposition
+            let mut index = 0;
+            loop {
+                if index == source_components.len() {
+                    break ();
+                }
+                // [Compute] Quantity to _mint
+                let component = source_components[index];
+                let erc20_address = self._component_addresses.read(component);
+                let erc20 = IERC20Dispatcher { contract_address: erc20_address };
+                let decimals: u128 = erc20.decimals().into();
+                let qty = TOKEN_QTY * math::pow(10, decimals);
+                // [Interaction] Mint component
+                erc20.mint(caller, qty.into());
+                index += 1;
+            };
+
+            // [Interaction] Specific decomposition
+            let mut index = 0;
+            loop {
+                if index == token_components.len() {
+                    break ();
+                }
+                // [Compute] Quantity to mint
+                let component = token_components[index];
+                let erc20_address = self._component_addresses.read(component);
+                let erc20 = IERC20Dispatcher { contract_address: erc20_address };
+                let decimals: u128 = erc20.decimals().into();
+                let qty = TOKEN_QTY * math::pow(10, decimals);
+                // [Interaction] Mint component
+                erc20.mint(caller, qty.into());
+                index += 1;
+            };
         }
     }
 
     #[generate_trait]
-    impl Internal of IInternal {}
+    impl Internal of IInternal {
+        fn _token_components_hash(
+            self: @ContractState, address: ContractAddress, token_id: u256
+        ) -> felt252 {
+            let mut inputs: Array<felt252> = ArrayTrait::new();
+            inputs.append(address.into());
+            inputs.append(token_id.low.into());
+            inputs.append(token_id.high.into());
+            poseidon_hash_span(inputs.span())
+        }
+    }
 }
 
 #[cfg(test)]
@@ -472,7 +603,7 @@ mod tests {
         let components = contract.components();
         contract.register_source(address: erc721.contract_address, components: components);
         contract.decompose(erc721.contract_address, token_id);
-        contract.compose(erc721.contract_address);
+        contract.compose(erc721.contract_address, token_id);
         // [Check] ERC20 new balance
         let erc20_address = contract.component_address(sk: sk);
         let erc20 = IERC20Dispatcher { contract_address: erc20_address };
