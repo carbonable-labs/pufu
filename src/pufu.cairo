@@ -363,7 +363,7 @@ mod pufu {
             };
 
             // [Interaction] Redeem ERC721 token
-            erc721.transferFrom(contract, caller, token_id);
+            erc721.transfer_from(contract, caller, token_id);
         }
 
         fn decompose(self: @ContractState, address: ContractAddress, token_id: u256) {
@@ -391,7 +391,7 @@ mod pufu {
 
             // [Interaction] Transfer token_id
             let to = get_contract_address();
-            erc721_contract.transferFrom(from: caller, to: to, tokenId: token_id);
+            erc721_contract.transfer_from(from: caller, to: to, token_id: token_id);
 
             // [Interaction] Generic decomposition
             let mut index = 0;
