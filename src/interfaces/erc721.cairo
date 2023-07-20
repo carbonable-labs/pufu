@@ -30,7 +30,7 @@ trait IERC721Legacy<TContractState> {
     fn balanceOf(self: @TContractState, account: ContractAddress) -> u256;
     fn ownerOf(self: @TContractState, tokenId: u256) -> ContractAddress;
     fn transferFrom(
-        self: @TContractState, from: ContractAddress, to: ContractAddress, tokenId: u256
+        ref self: TContractState, from: ContractAddress, to: ContractAddress, tokenId: u256
     );
     fn safeTransferFrom(
         ref self: TContractState,
