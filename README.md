@@ -1,6 +1,6 @@
 <div align="center">
   <h1>Pufu</h1>
-  <img src="docs/images/logo.jpg" height="540" width="960">
+  <img src="docs/images/logo.png" height="400" width="400">
   <br />
   <a href="https://github.com/carbonable-labs/pufu/issues/new?assignees=&labels=bug&template=01_BUG_REPORT.md&title=bug%3A+">Report a Bug</a>
   -
