@@ -69,7 +69,7 @@ mod pufu {
 
     #[derive(Drop, starknet::Event)]
     struct DeleteComponent {
-        sk: felt252,
+        sk: felt252, 
     }
 
     #[derive(Drop, starknet::Event)]
@@ -80,7 +80,7 @@ mod pufu {
 
     #[derive(Drop, starknet::Event)]
     struct DeleteSource {
-        source: ContractAddress,
+        source: ContractAddress, 
     }
 
     #[derive(Drop, starknet::Event)]
@@ -224,7 +224,7 @@ mod pufu {
         ) {
             // [Check] Caller is owner
             self.assert_only_owner();
-            
+
             // [Check] Source not already registered
             let mut source_components = self._source_components.read(address);
             assert(source_components.len() == 0, 'Source already registered');
@@ -250,7 +250,12 @@ mod pufu {
             sources.append(address);
 
             // [Event] Emit
-            self.emit(Event::RegisterSource(RegisterSource { source: address, components: components }));
+            self
+                .emit(
+                    Event::RegisterSource(
+                        RegisterSource { source: address, components: components }
+                    )
+                );
         }
 
         fn delete_source(ref self: ContractState, address: ContractAddress) {
@@ -339,7 +344,14 @@ mod pufu {
             };
 
             // [Event] Emit
-            self.emit(Event::RegisterToken(RegisterToken { source: address, token_id: token_id, components: components }));
+            self
+                .emit(
+                    Event::RegisterToken(
+                        RegisterToken {
+                            source: address, token_id: token_id, components: components
+                        }
+                    )
+                );
         }
 
         fn delete_token(ref self: ContractState, address: ContractAddress, token_id: u256) {
