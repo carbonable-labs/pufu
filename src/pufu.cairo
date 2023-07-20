@@ -13,7 +13,10 @@ mod pufu {
     use alexandria::storage::list::{List, ListTrait};
     use super::super::interfaces::pufu::IPufu;
     use starknet::get_contract_address;
-    use super::super::interfaces::erc721::{IERC721Dispatcher, IERC721DispatcherTrait};
+    use super::super::interfaces::erc721::{
+        IERC721Dispatcher, IERC721DispatcherTrait, IERC721LegacyDispatcher,
+        IERC721LegacyDispatcherTrait
+    };
     use super::super::interfaces::erc20::{IERC20Dispatcher, IERC20DispatcherTrait};
     use alexandria::math::math;
     use debug::PrintTrait;
@@ -292,8 +295,8 @@ mod pufu {
             assert(token_components.len() != 0, 'Token not registered');
 
             // [Check] The token is not decomposed
-            let erc721 = IERC721Dispatcher { contract_address: address };
-            let owner = erc721.owner_of(token_id);
+            let erc721 = IERC721LegacyDispatcher { contract_address: address };
+            let owner = erc721.ownerOf(token_id);
             let contract = get_contract_address();
             assert(owner != contract, 'Token is decomposed');
 
@@ -321,7 +324,7 @@ mod pufu {
             );
 
             // [Check] Contract has at least 1 token
-            let erc721 = IERC721Dispatcher { contract_address: address };
+            let erc721 = IERC721LegacyDispatcher { contract_address: address };
             let contract = get_contract_address();
             let mut token_ids = self._token_ids.read(erc721.contract_address);
             assert(token_ids.len() > 0, 'No token to redeem');
@@ -367,14 +370,14 @@ mod pufu {
             };
 
             // [Interaction] Redeem ERC721 token
-            erc721.transfer_from(contract, caller, token_id);
+            erc721.transferFrom(from: contract, to: caller, tokenId: token_id);
         }
 
         fn decompose(ref self: ContractState, address: ContractAddress, token_id: u256) {
-            //[Check] caller is the ERC721 owner
+            // [Check] caller is the ERC721 owner
             let caller = get_caller_address();
-            let erc721_contract = IERC721Dispatcher { contract_address: address };
-            let owner = erc721_contract.owner_of(token_id);
+            let erc721 = IERC721LegacyDispatcher { contract_address: address };
+            let owner = erc721.ownerOf(token_id);
             assert(caller == owner, 'Only owner can decompose');
 
             let mut source_components = self._source_components.read(address);
@@ -399,7 +402,7 @@ mod pufu {
 
             // [Interaction] Transfer token_id
             let to = get_contract_address();
-            erc721_contract.transfer_from(from: caller, to: to, token_id: token_id);
+            erc721.transferFrom(from: caller, to: to, tokenId: token_id);
 
             // [Interaction] Generic decomposition
             let mut index = 0;
@@ -468,7 +471,10 @@ mod tests {
     use super::pufu;
     use super::super::interfaces::pufu::{IPufuDispatcher, IPufuDispatcherTrait};
     use super::super::erc20::erc20;
-    use super::super::interfaces::erc721::{IERC721Dispatcher, IERC721DispatcherTrait};
+    use super::super::interfaces::erc721::{
+        IERC721Dispatcher, IERC721DispatcherTrait, IERC721LegacyDispatcher,
+        IERC721LegacyDispatcherTrait
+    };
     use super::super::tests::mocks::erc721::mock;
     use super::super::interfaces::erc20::{IERC20Dispatcher, IERC20DispatcherTrait};
 
@@ -483,16 +489,16 @@ mod tests {
         IPufuDispatcher { contract_address: address }
     }
 
-    fn deploy_erc721() -> IERC721Dispatcher {
+    fn deploy_erc721() -> IERC721LegacyDispatcher {
         let mut calldata = Default::default();
         let (address, _) = deploy_syscall(
             mock::TEST_CLASS_HASH.try_into().unwrap(), 0, calldata.span(), false
         )
             .unwrap();
-        IERC721Dispatcher { contract_address: address }
+        IERC721LegacyDispatcher { contract_address: address }
     }
 
-    fn setup() -> (IPufuDispatcher, IERC721Dispatcher, ContractAddress) {
+    fn setup() -> (IPufuDispatcher, IERC721LegacyDispatcher, ContractAddress) {
         let admin = starknet::contract_address_const::<'ADMIN'>();
         set_contract_address(admin);
         (deploy_pufu(), deploy_erc721(), admin)
@@ -677,28 +683,28 @@ mod tests {
     fn test_specific_decompose() {
         let (contract, erc721, admin) = setup();
         let token_id = 1_u256;
-        //[Effect] register generic component
+        // [Effect] register generic component
         let gk = 'GK';
         contract.register_component(sk: gk, name: 'NAME', symbol: 'SYMBOL');
         let components = contract.components();
         contract.register_source(address: erc721.contract_address, components: components);
-        //[Effect] register specific component
+        // [Effect] register specific component
         let sk = 'SK';
         contract.register_component(sk: sk, name: 'NAME', symbol: 'SYMBOL');
-        //[Effect] create specific component
+        // [Effect] create specific component
         let mut specific_components: Array<felt252> = ArrayTrait::new();
         specific_components.append(sk);
-        //[Effect] register token
+        // [Effect] register token
         contract.register_token(erc721.contract_address, token_id, specific_components);
-        //[Interaction] decompose
+        // [Interaction] decompose
         contract.decompose(erc721.contract_address, token_id);
-        //[Check] generic erc20 new balance
+        // [Check] generic erc20 new balance
         let erc20_address = contract.component_address(sk: gk);
         let erc20 = IERC20Dispatcher { contract_address: erc20_address };
         let decimals: u128 = erc20.decimals().into();
         let qty = pufu::TOKEN_QTY * math::pow(10, decimals);
         assert(erc20.balance_of(admin) == qty.into(), 'Wrong generic balance');
-        //[Check] specific erc20 new balance
+        // [Check] specific erc20 new balance
         let erc20_address = contract.component_address(sk: sk);
         let erc20 = IERC20Dispatcher { contract_address: erc20_address };
         let decimals: u128 = erc20.decimals().into();
@@ -711,30 +717,30 @@ mod tests {
     fn test_specific_compose() {
         let (contract, erc721, admin) = setup();
         let token_id = 1_u256;
-        //[Effect] register generic component
+        // [Effect] register generic component
         let gk = 'GK';
         contract.register_component(sk: gk, name: 'NAME', symbol: 'SYMBOL');
         let components = contract.components();
         contract.register_source(address: erc721.contract_address, components: components);
-        //[Effect] register specific component
+        // [Effect] register specific component
         let sk = 'SK';
         contract.register_component(sk: sk, name: 'NAME', symbol: 'SYMBOL');
-        //[Effect] create specific component
+        // [Effect] create specific component
         let mut specific_components: Array<felt252> = ArrayTrait::new();
         specific_components.append(sk);
-        //[Effect] register token
+        // [Effect] register token
         contract.register_token(erc721.contract_address, token_id, specific_components);
-        //[Interaction] decompose
+        // [Interaction] decompose
         contract.decompose(erc721.contract_address, token_id);
-        //[Interaction] compose
+        // [Interaction] compose
         contract.compose(erc721.contract_address, token_id);
-        //[Check] generic erc20 new balance ==0
+        // [Check] generic erc20 new balance ==0
         let erc20_address = contract.component_address(sk: gk);
         let erc20 = IERC20Dispatcher { contract_address: erc20_address };
         let decimals: u128 = erc20.decimals().into();
         let qty = pufu::TOKEN_QTY * math::pow(10, decimals);
         assert(erc20.balance_of(admin) == 0, 'Wrong generic balance');
-        //[Check] specific erc20 new balance ==0
+        // [Check] specific erc20 new balance ==0
         let erc20_address = contract.component_address(sk: sk);
         let erc20 = IERC20Dispatcher { contract_address: erc20_address };
         let decimals: u128 = erc20.decimals().into();

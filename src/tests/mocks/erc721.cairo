@@ -8,7 +8,7 @@ mod erc721 {
     use starknet::ContractAddress;
     use starknet::get_caller_address;
     use zeroable::Zeroable;
-    use super::super::super::super::interfaces::erc721::{IERC721, IERC721Minter};
+    use super::super::super::super::interfaces::erc721::{IERC721, IERC721Legacy, IERC721Minter};
 
     #[storage]
     struct Storage {
@@ -129,6 +129,62 @@ mod erc721 {
                 'ERC721: unauthorized caller'
             );
             self._safe_transfer(from, to, token_id, data);
+        }
+    }
+
+    #[external(v0)]
+    impl ERC721Legacy of IERC721Legacy<ContractState> {
+        fn tokenUri(self: @ContractState, tokenId: u256) -> felt252 {
+            assert(self._exists(tokenId), 'ERC721: invalid token ID');
+            self._token_uri.read(tokenId)
+        }
+
+        fn balanceOf(self: @ContractState, account: ContractAddress) -> u256 {
+            assert(!account.is_zero(), 'ERC721: invalid account');
+            self._balances.read(account)
+        }
+
+        fn ownerOf(self: @ContractState, tokenId: u256) -> ContractAddress {
+            self._owner_of(tokenId)
+        }
+
+        fn getApproved(self: @ContractState, tokenId: u256) -> ContractAddress {
+            assert(self._exists(tokenId), 'ERC721: invalid token ID');
+            self._token_approvals.read(tokenId)
+        }
+
+        fn isApprovedForAll(
+            self: @ContractState, owner: ContractAddress, operator: ContractAddress
+        ) -> bool {
+            self._operator_approvals.read((owner, operator))
+        }
+
+        fn setApprovalForAll(ref self: ContractState, operator: ContractAddress, approved: bool) {
+            self._set_approval_for_all(get_caller_address(), operator, approved)
+        }
+
+        fn transferFrom(
+            ref self: ContractState, from: ContractAddress, to: ContractAddress, tokenId: u256
+        ) {
+            assert(
+                self._is_approved_or_owner(get_caller_address(), tokenId),
+                'ERC721: unauthorized caller'
+            );
+            self._transfer(from, to, tokenId);
+        }
+
+        fn safeTransferFrom(
+            ref self: ContractState,
+            from: ContractAddress,
+            to: ContractAddress,
+            tokenId: u256,
+            data: Span<felt252>
+        ) {
+            assert(
+                self._is_approved_or_owner(get_caller_address(), tokenId),
+                'ERC721: unauthorized caller'
+            );
+            self._safe_transfer(from, to, tokenId, data);
         }
     }
 
@@ -276,7 +332,7 @@ mod erc721 {
 mod mock {
     use starknet::ContractAddress;
     use starknet::get_caller_address;
-    use super::super::super::super::interfaces::erc721::{IERC721};
+    use super::super::super::super::interfaces::erc721::{IERC721, IERC721Legacy};
     use traits::TryInto;
     use option::OptionTrait;
 
@@ -333,6 +389,45 @@ mod mock {
             from: ContractAddress,
             to: ContractAddress,
             token_id: u256,
+            data: Span<felt252>
+        ) {}
+    }
+
+    #[external(v0)]
+    impl ERC721Legacy of IERC721Legacy<ContractState> {
+        fn tokenUri(self: @ContractState, tokenId: u256) -> felt252 {
+            'URI'
+        }
+
+        fn balanceOf(self: @ContractState, account: ContractAddress) -> u256 {
+            1_u256
+        }
+
+        fn ownerOf(self: @ContractState, tokenId: u256) -> ContractAddress {
+            starknet::contract_address_const::<'ADMIN'>()
+        }
+
+        fn getApproved(self: @ContractState, tokenId: u256) -> ContractAddress {
+            starknet::contract_address_const::<'ADMIN'>()
+        }
+
+        fn isApprovedForAll(
+            self: @ContractState, owner: ContractAddress, operator: ContractAddress
+        ) -> bool {
+            true
+        }
+
+        fn setApprovalForAll(ref self: ContractState, operator: ContractAddress, approved: bool) {}
+
+        fn transferFrom(
+            ref self: ContractState, from: ContractAddress, to: ContractAddress, tokenId: u256
+        ) {}
+
+        fn safeTransferFrom(
+            ref self: ContractState,
+            from: ContractAddress,
+            to: ContractAddress,
+            tokenId: u256,
             data: Span<felt252>
         ) {}
     }
