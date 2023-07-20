@@ -4,6 +4,7 @@ mod pufu {
     use traits::{Into, TryInto};
     use result::ResultTrait;
     use option::OptionTrait;
+    use serde::Serde;
     use array::{Array, ArrayTrait};
     use poseidon::poseidon_hash_span;
     use starknet::ContractAddress;
@@ -40,22 +41,59 @@ mod pufu {
     enum Event {
         Compose: Compose,
         Decompose: Decompose,
-        Register: Register,
+        RegisterComponent: RegisterComponent,
+        DeleteComponent: DeleteComponent,
+        RegisterSource: RegisterSource,
+        DeleteSource: DeleteSource,
+        RegisterToken: RegisterToken,
+        DeleteToken: DeleteToken,
     }
 
     #[derive(Drop, starknet::Event)]
     struct Compose {
-        time: u64, 
+        source: ContractAddress,
+        token_id: u256,
     }
 
     #[derive(Drop, starknet::Event)]
     struct Decompose {
-        time: u64, 
+        source: ContractAddress,
+        token_id: u256,
     }
 
     #[derive(Drop, starknet::Event)]
-    struct Register {
-        time: u64, 
+    struct RegisterComponent {
+        sk: felt252,
+        address: ContractAddress,
+    }
+
+    #[derive(Drop, starknet::Event)]
+    struct DeleteComponent {
+        sk: felt252,
+    }
+
+    #[derive(Drop, starknet::Event)]
+    struct RegisterSource {
+        source: ContractAddress,
+        components: Array<felt252>,
+    }
+
+    #[derive(Drop, starknet::Event)]
+    struct DeleteSource {
+        source: ContractAddress,
+    }
+
+    #[derive(Drop, starknet::Event)]
+    struct RegisterToken {
+        source: ContractAddress,
+        token_id: u256,
+        components: Array<felt252>,
+    }
+
+    #[derive(Drop, starknet::Event)]
+    struct DeleteToken {
+        source: ContractAddress,
+        token_id: u256,
     }
 
     #[constructor]
@@ -133,6 +171,8 @@ mod pufu {
             let mut components = self._components.read();
             components.append(sk);
             self._component_addresses.write(sk, address);
+            // [Event] Emit
+            self.emit(Event::RegisterComponent(RegisterComponent { sk: sk, address: address }));
         }
 
         fn delete_component(ref self: ContractState, sk: felt252) {
@@ -167,6 +207,8 @@ mod pufu {
                 index += 1;
             };
             self._component_addresses.write(sk, Zeroable::zero());
+            // [Event] Emit
+            self.emit(Event::DeleteComponent(DeleteComponent { sk: sk }));
         }
 
         fn sources(self: @ContractState) -> Array<ContractAddress> {
@@ -182,25 +224,33 @@ mod pufu {
         ) {
             // [Check] Caller is owner
             self.assert_only_owner();
+            
             // [Check] Source not already registered
             let mut source_components = self._source_components.read(address);
             assert(source_components.len() == 0, 'Source already registered');
+
             // [Effect] Store components
+            let snapshot_components = @components;
             let mut index = 0;
             loop {
-                if index == components.len() {
+                if index == snapshot_components.len() {
                     break ();
                 }
-                let component = *components[index];
+                let component = *snapshot_components[index];
+
                 // [Check] Component is registered
                 let component_address = self._component_addresses.read(component);
                 assert(!component_address.is_zero(), 'Component not registered');
                 source_components.append(component);
                 index += 1;
             };
+
             // [Effect] Store source
             let mut sources = self._sources.read();
             sources.append(address);
+
+            // [Event] Emit
+            self.emit(Event::RegisterSource(RegisterSource { source: address, components: components }));
         }
 
         fn delete_source(ref self: ContractState, address: ContractAddress) {
@@ -243,6 +293,9 @@ mod pufu {
                 }
                 source_components.pop_front();
             };
+
+            // [Event] Emit
+            self.emit(Event::DeleteSource(DeleteSource { source: address }));
         }
 
         fn tokens(self: @ContractState, address: ContractAddress) -> Array<u256> {
@@ -271,18 +324,22 @@ mod pufu {
             assert(token_components.len() == 0, 'Token already registered');
 
             // [Effect] Store components
+            let snapshot_components = @components;
             let mut index = 0;
             loop {
-                if index == components.len() {
+                if index == snapshot_components.len() {
                     break ();
                 }
-                let component = *components[index];
+                let component = *snapshot_components[index];
                 // [Check] Component is registered
                 let component_address = self._component_addresses.read(component);
                 assert(!component_address.is_zero(), 'Component not registered');
                 token_components.append(component);
                 index += 1;
             };
+
+            // [Event] Emit
+            self.emit(Event::RegisterToken(RegisterToken { source: address, token_id: token_id, components: components }));
         }
 
         fn delete_token(ref self: ContractState, address: ContractAddress, token_id: u256) {
@@ -308,6 +365,9 @@ mod pufu {
                 }
                 token_components.pop_front();
             };
+
+            // [Event] Emit
+            self.emit(Event::DeleteToken(DeleteToken { source: address, token_id: token_id }));
         }
 
         fn compose(ref self: ContractState, address: ContractAddress, token_id: u256) {
@@ -371,6 +431,9 @@ mod pufu {
 
             // [Interaction] Redeem ERC721 token
             erc721.transferFrom(from: contract, to: caller, tokenId: token_id);
+
+            // [Event] Emit
+            self.emit(Event::Compose(Compose { source: address, token_id: token_id }));
         }
 
         fn decompose(ref self: ContractState, address: ContractAddress, token_id: u256) {
@@ -437,6 +500,9 @@ mod pufu {
                 erc20.mint(caller, qty.into());
                 index += 1;
             };
+
+            // [Event] Emit
+            self.emit(Event::Decompose(Decompose { source: address, token_id: token_id }));
         }
     }
 
